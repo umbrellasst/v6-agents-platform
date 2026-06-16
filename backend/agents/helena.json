@@ -1,0 +1,11 @@
+{
+  "agent_id": "helena",
+  "openclaw_agent": "comercial-v6",
+  "channel": "whatsapp",
+  "status": "active",
+  "role": "SDR + CX",
+  "handoff_mode": "lead_pipeline",
+  "lead_storage": "~/v6-agents-platform/backend/leads/leads.jsonl",
+  "followup_enabled": false,
+  "followup_after_days": 2
+}

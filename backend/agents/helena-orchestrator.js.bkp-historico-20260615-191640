@@ -1,0 +1,114 @@
+const { buildHelenaContext } = require("./helena-context-builder");
+const {
+  findOrCreateContactByPhone,
+  updateContactMemory
+} = require("./contact-memory");
+const { buildHelenaResponsePolicy } = require("./helena-response-policy");
+
+const { classifyRelationship } = require("../classifiers/relationship-classifier");
+const { classifyIntent } = require("../classifiers/intent-classifier");
+const { routeHelena } = require("../classifiers/routing-engine");
+const { buildHelenaMessage } = require("../classifiers/message-builder");
+
+const {
+  ensureConversationState,
+  getConversationState,
+  canHelenaReply
+} = require("./conversation-state");
+
+async function orchestrateHelenaMessage({ phone, incomingMessage }) {
+  const contactResult = await findOrCreateContactByPhone({ phone });
+  const contact = contactResult.contact;
+  const contactWasCreated = contactResult.created;
+
+  await updateContactMemory(
+    contact.id,
+    incomingMessage
+  );
+
+  const relationshipType = classifyRelationship({
+    contact,
+    message: incomingMessage
+  });
+
+  const intentType = classifyIntent(incomingMessage);
+
+  const route = routeHelena({
+    relationshipType,
+    intentType
+  });
+
+  await ensureConversationState({
+    contact_id: contact.id,
+    customer_id: contact.customer_id
+  });
+
+  const state = await getConversationState(contact.id);
+
+  if (!canHelenaReply(state)) {
+    return {
+      phone,
+      known_contact: !contactWasCreated,
+      contact_created: contactWasCreated,
+      should_reply: false,
+      reason: "conversation_owned_by_human",
+      owner: state.owner,
+      status: state.status,
+      assigned_department: state.assigned_department,
+      relationship_type: relationshipType,
+      intent_type: intentType,
+      route,
+      context_text: "Conversa em atendimento humano. Helena deve permanecer em silêncio.",
+      prompt_for_ai: null
+    };
+  }
+
+  const context = await buildHelenaContext({
+    phone,
+    incomingMessage
+  });
+
+  return {
+    phone,
+    known_contact: !contactWasCreated,
+    contact_created: contactWasCreated,
+    should_reply: true,
+    reason: contactWasCreated ? "new_contact_created" : "helena_owner",
+    owner: state.owner,
+    status: state.status,
+    relationship_type: relationshipType,
+    intent_type: intentType,
+    route,
+    direct_message: buildHelenaMessage({ route, contact }),
+    context_text: context.context_text,
+    prompt_for_ai: buildPrompt(context.context_text, route)
+  };
+}
+
+function buildPrompt(contextText, route) {
+  return `
+Você é Helena, consultora comercial e Customer Experience da V6 Tecnologia.
+
+Abaixo está o contexto completo do atendimento:
+
+${contextText}
+
+Decisão operacional da plataforma:
+${JSON.stringify(route, null, 2)}
+
+${buildHelenaResponsePolicy()}
+
+Regras adicionais:
+- Respeite a decisão operacional acima.
+- Se messageType = support_portal, não diagnostique e direcione para o portal de chamados.
+- Se shouldAskTechnicalQuestions = false, não faça perguntas técnicas.
+- Se shouldDiagnose = false, não tente resolver tecnicamente.
+- Se shouldHandoff = true, encaminhe para o setor indicado, sem citar nomes de colaboradores.
+
+Gere apenas a resposta final que será enviada ao cliente.
+`;
+}
+
+module.exports = {
+  orchestrateHelenaMessage
+};

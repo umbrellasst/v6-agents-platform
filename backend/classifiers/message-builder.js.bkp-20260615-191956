@@ -1,0 +1,53 @@
+const SUPPORT_PORTAL_URL = "https://suporte.v6tecnologia.com.br/";
+
+function buildHelenaMessage({ route, contact = {} }) {
+  const name = contact.name || "tudo bem";
+
+  if (route.messageType === "support_portal") {
+    return `Entendi sua solicitação. 😊
+
+Para que nossa equipe técnica acompanhe adequadamente a ocorrência, peço que registre o chamado através do portal:
+
+${SUPPORT_PORTAL_URL}
+
+Após o registro, o atendimento seguirá pelo fluxo técnico apropriado.`;
+  }
+
+  if (route.messageType === "financial_handoff") {
+    return `Entendi, ${name}. 😊
+
+Vou direcionar sua solicitação para o *setor financeiro* dar continuidade.`;
+  }
+
+  if (route.messageType === "supplier_validation") {
+    return `Recebi aqui. 😊
+
+Vou validar internamente e te retorno.`;
+  }
+
+  if (route.messageType === "hr_handoff") {
+    return `Recebi seu contato. 😊
+
+Você pode enviar seu currículo para *vagas@v6tecnologia.com.br*, juntamente com a área de interesse.`;
+  }
+
+  if (route.messageType === "partnership_context") {
+    return `Obrigado pelo contato. 😊
+
+Pode me enviar um breve contexto da parceria para que eu direcione internamente da forma correta?`;
+  }
+
+  if (route.messageType === "commercial_qualification") {
+    return `Perfeito, ${name}. 😊
+
+Para eu te direcionar melhor, me conta rapidamente qual é o principal objetivo com esse atendimento inteligente no WhatsApp?`;
+  }
+
+  return `Olá! 😊
+
+Como posso te ajudar hoje?`;
+}
+
+module.exports = {
+  buildHelenaMessage
+};

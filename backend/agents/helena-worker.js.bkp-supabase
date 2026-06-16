@@ -1,0 +1,50 @@
+const fs = require("fs");
+const path = require("path");
+
+const BASE_DIR = path.resolve(process.env.HOME, "v6-agents-platform");
+const LEADS_FILE = path.join(BASE_DIR, "backend", "leads", "leads.jsonl");
+const LOG_FILE = path.join(BASE_DIR, "backend", "logs", "helena.log");
+
+function log(message) {
+  const line = `[${new Date().toISOString()}] ${message}\n`;
+  fs.appendFileSync(LOG_FILE, line);
+}
+
+function saveLead(lead) {
+  const now = new Date().toISOString();
+
+  const payload = {
+    lead_id: lead.lead_id || `lead_${Date.now()}`,
+    created_at: lead.created_at || now,
+    updated_at: now,
+    source: lead.source || "whatsapp",
+    agent: lead.agent || "helena",
+    name: lead.name || "",
+    phone: lead.phone || "",
+    company: lead.company || "",
+    city: lead.city || "",
+    is_contract_client: Boolean(lead.is_contract_client),
+    client_type: lead.client_type || "lead",
+    department: lead.department || "",
+    interest: lead.interest || "",
+    problem_summary: lead.problem_summary || "",
+    urgency: lead.urgency || "",
+    lead_temperature: lead.lead_temperature || "",
+    next_action: lead.next_action || "",
+    assigned_to: lead.assigned_to || "",
+    status: lead.status || "new",
+    last_message_at: lead.last_message_at || now,
+    followup_due_at: lead.followup_due_at || "",
+    conversation_summary: lead.conversation_summary || "",
+    handoff_summary: lead.handoff_summary || ""
+  };
+
+  fs.appendFileSync(LEADS_FILE, JSON.stringify(payload) + "\n");
+  log(`Lead salvo: ${payload.lead_id} | ${payload.name} | ${payload.company}`);
+  return payload;
+}
+
+module.exports = {
+  saveLead,
+  log
+};

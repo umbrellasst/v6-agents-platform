@@ -1,0 +1,89 @@
+const { buildHelenaContext } = require("./helena-context-builder");
+const { findContactByPhone } = require("./contact-memory");
+const { buildHelenaResponsePolicy } = require("./helena-response-policy");
+
+const { classifyRelationship } = require("../classifiers/relationship-classifier");
+const { classifyIntent } = require("../classifiers/intent-classifier");
+const { routeHelena } = require("../classifiers/routing-engine");
+const { buildHelenaMessage } = require("../classifiers/message-builder");
+
+const {
+  ensureConversationState,
+  getConversationState,
+  canHelenaReply
+} = require("./conversation-state");
+
+async function orchestrateHelenaMessage({ phone, incomingMessage }) {
+  const contact = await findContactByPhone(phone);
+
+  if (!contact) {
+    const context = await buildHelenaContext({
+      phone,
+      incomingMessage
+    });
+
+    return {
+      phone,
+      known_contact: false,
+      should_reply: true,
+      reason: "unknown_contact",
+      context_text: context.context_text,
+      prompt_for_ai: buildPrompt(context.context_text)
+    };
+  }
+
+  await ensureConversationState({
+    contact_id: contact.id,
+    customer_id: contact.customer_id
+  });
+
+  const state = await getConversationState(contact.id);
+
+  if (!canHelenaReply(state)) {
+    return {
+      phone,
+      known_contact: true,
+      should_reply: false,
+      reason: "conversation_owned_by_human",
+      owner: state.owner,
+      status: state.status,
+      assigned_department: state.assigned_department,
+      context_text: "Conversa em atendimento humano. Helena deve permanecer em silêncio.",
+      prompt_for_ai: null
+    };
+  }
+
+  const context = await buildHelenaContext({
+    phone,
+    incomingMessage
+  });
+
+  return {
+    phone,
+    known_contact: true,
+    should_reply: true,
+    reason: "helena_owner",
+    owner: state.owner,
+    status: state.status,
+    context_text: context.context_text,
+    prompt_for_ai: buildPrompt(context.context_text)
+  };
+}
+
+function buildPrompt(contextText) {
+  return `
+Você é Helena, consultora comercial e Customer Experience da V6 Tecnologia.
+
+Abaixo está o contexto completo do atendimento:
+
+${contextText}
+
+${buildHelenaResponsePolicy()}
+
+Gere apenas a resposta final que será enviada ao cliente.
+`;
+}
+
+module.exports = {
+  orchestrateHelenaMessage
+};
