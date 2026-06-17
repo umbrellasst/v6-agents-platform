@@ -15,6 +15,8 @@ const { classifyIntent } = require("../classifiers/intent-classifier");
 const { routeHelena } = require("../classifiers/routing-engine");
 const { buildHelenaMessage } = require("../classifiers/message-builder");
 
+const { generateHelenaReply } = require("./helena-brain");
+
 const {
   ensureConversationState,
   getConversationState,
@@ -34,22 +36,11 @@ async function orchestrateHelenaMessage({ phone, incomingMessage }) {
     message: incomingMessage
   });
 
-  await updateContactMemory(
-    contact.id,
-    incomingMessage
-  );
+  await updateContactMemory(contact.id, incomingMessage);
 
-  const relationshipType = classifyRelationship({
-    contact,
-    message: incomingMessage
-  });
-
+  const relationshipType = classifyRelationship({ contact, message: incomingMessage });
   const intentType = classifyIntent(incomingMessage);
-
-  const route = routeHelena({
-    relationshipType,
-    intentType
-  });
+  const route = routeHelena({ relationshipType, intentType });
 
   await ensureConversationState({
     contact_id: contact.id,
@@ -76,21 +67,25 @@ async function orchestrateHelenaMessage({ phone, incomingMessage }) {
     };
   }
 
-  const context = await buildHelenaContext({
-    phone,
-    incomingMessage
-  });
+  const context = await buildHelenaContext({ phone, incomingMessage });
+  const prompt = buildPrompt(context.context_text, route);
 
-  const directMessage = buildHelenaMessage({
-    route,
-    contact
-  });
+  let replyMessage;
+  let replySource;
+  try {
+    replyMessage = await generateHelenaReply(prompt);
+    replySource = "claude";
+  } catch (err) {
+    console.error("Falha ao gerar resposta com Claude, usando template:", err.message);
+    replyMessage = buildHelenaMessage({ route, contact });
+    replySource = "template_fallback";
+  }
 
   await saveConversationMessage({
     contact_id: contact.id,
     customer_id: contact.customer_id,
     direction: "outbound",
-    message: directMessage
+    message: replyMessage
   });
 
   return {
@@ -104,9 +99,10 @@ async function orchestrateHelenaMessage({ phone, incomingMessage }) {
     relationship_type: relationshipType,
     intent_type: intentType,
     route,
-    direct_message: directMessage,
+    reply: replyMessage,
+    reply_source: replySource,
     context_text: context.context_text,
-    prompt_for_ai: buildPrompt(context.context_text, route)
+    prompt_for_ai: prompt
   };
 }
 
