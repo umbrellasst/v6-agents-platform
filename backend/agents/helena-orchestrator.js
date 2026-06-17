@@ -12,6 +12,7 @@ const { buildHelenaResponsePolicy } = require("./helena-response-policy");
 
 const { classifyRelationship } = require("../classifiers/relationship-classifier");
 const { classifyIntent } = require("../classifiers/intent-classifier");
+const { classifyIntentAI } = require("../classifiers/intent-ai");
 const { routeHelena } = require("../classifiers/routing-engine");
 const { buildHelenaMessage } = require("../classifiers/message-builder");
 
@@ -39,7 +40,13 @@ async function orchestrateHelenaMessage({ phone, incomingMessage }) {
   await updateContactMemory(contact.id, incomingMessage);
 
   const relationshipType = classifyRelationship({ contact, message: incomingMessage });
-  const intentType = classifyIntent(incomingMessage);
+
+  // Intencao: tenta classificar com o Claude; se falhar, usa a regra antiga.
+  let intentType = await classifyIntentAI(incomingMessage);
+  if (!intentType) {
+    intentType = classifyIntent(incomingMessage);
+  }
+
   const route = routeHelena({ relationshipType, intentType });
 
   await ensureConversationState({
